@@ -181,7 +181,7 @@ h1 {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(219, 228, 238, 0.9);
   box-shadow: var(--shadow);
-  border-radius: 24px;
+  border-radius: 12px;
 }
 
 .hero-panel {
