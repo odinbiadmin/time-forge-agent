@@ -77,8 +77,6 @@ input {
   height: 42px;
   object-fit: contain;
   border-radius: 12px;
-  background: #fff;
-  box-shadow: 0 6px 18px rgba(23, 105, 224, 0.18);
 }
 
 .eyebrow,
@@ -601,6 +599,12 @@ h1 {
   gap: 0.85rem;
 }
 
+.device-primary-grid {
+  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) minmax(160px, 1fr);
+  align-items: end;
+  gap: 0.85rem;
+}
+
 .sync-grid {
   align-items: end;
 }
@@ -620,14 +624,15 @@ h1 {
 }
 
 .device-list-field {
-  margin-top: 0.85rem;
+  margin-top: 1rem;
 }
 
 .device-add-grid {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.2fr) 96px auto;
-  gap: 0.65rem;
-  align-items: center;
+  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.15fr) 96px minmax(116px, auto);
+  gap: 0.85rem;
+  align-items: end;
+  margin-top: 0.45rem;
 }
 
 .device-list,
@@ -769,6 +774,14 @@ h1 {
 
 .form-group-action {
   justify-content: flex-end;
+}
+
+.form-group-action .btn,
+.device-add-grid .btn {
+  width: 100%;
+  min-width: 116px;
+  height: 40px;
+  white-space: nowrap;
 }
 
 label {
@@ -1270,6 +1283,10 @@ input[type="range"] {
   }
 
   .device-add-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .device-primary-grid {
     grid-template-columns: 1fr;
   }
 

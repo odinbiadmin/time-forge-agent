@@ -107,16 +107,18 @@ App đã có cơ chế tự kiểm tra phiên bản mới khi chạy bản đã 
   - file installer `Attendance Agent Desktop-Setup-x.y.z.exe`
   - file `.blockmap` nếu có.
 
-Trên máy chạy app, cấu hình một trong hai biến môi trường sau:
+Nguồn update mặc định đã được cấu hình cứng trong app:
 
-```cmd
-setx ATTENDANCE_UPDATE_GITHUB_REPO "odinbiadmin/time-forge-agent"
+```txt
+odinbiadmin/time-forge-agent
 ```
 
-Hoặc:
+Người dùng cuối không cần chạy `setx` hay tạo `.env`.
+
+Nếu cần override nguồn update khi test/dev, có thể dùng biến môi trường:
 
 ```cmd
-setx ATTENDANCE_UPDATE_URL "https://github.com/odinbiadmin/time-forge-agent"
+setx ATTENDANCE_UPDATE_GITHUB_REPO "owner/repo-khac"
 ```
 
 Sau khi mở lại app, chương trình sẽ tự kiểm tra update sau khoảng 5 giây và lặp lại mỗi 6 giờ. Khi tải xong bản mới, app sẽ hỏi người dùng cài và khởi động lại ngay hoặc để lần sau.

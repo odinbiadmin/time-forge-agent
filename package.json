@@ -1,6 +1,6 @@
 {
   "name": "attendance-agent-desktop",
-  "version": "1.0.6",
+  "version": "1.0.7",
   "description": "Desktop application for managing thermal attendance jobs",
   "main": "main.js",
   "scripts": {
@@ -47,7 +47,7 @@
           ]
         }
       ],
-      "artifactName": "${productName}-Setup-${version}.${ext}",
+      "artifactName": "Attendance-Agent-Desktop-Setup-${version}.${ext}",
       "icon": "assets/icon.ico"
     },
     "nsis": {

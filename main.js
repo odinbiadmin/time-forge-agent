@@ -39,6 +39,8 @@ let updateStatus = {
   percent: null,
 };
 
+const DEFAULT_UPDATE_GITHUB_REPO = "https://github.com/odinbiadmin/time-forge-agent";
+
 if (process.platform === "win32") {
   app.setAppUserModelId("com.attendance.agent.desktop");
 }
@@ -54,9 +56,15 @@ function createWindow() {
     },
     icon: path.join(__dirname, "assets", "icon.ico"),
     autoHideMenuBar: true,
+    show: false,
   });
 
   mainWindow.loadFile("renderer/index.html");
+  mainWindow.once("ready-to-show", () => {
+    if (!mainWindow) return;
+    mainWindow.maximize();
+    mainWindow.show();
+  });
 
   // Open DevTools in development mode
   if (process.argv.includes("--dev")) {
@@ -192,7 +200,8 @@ function resolveUpdateFeedOptions() {
   const githubRepoRef =
     process.env.ATTENDANCE_UPDATE_GITHUB_REPO ||
     process.env.ATTENDANCE_UPDATE_REPO ||
-    process.env.ATTENDANCE_UPDATE_URL;
+    process.env.ATTENDANCE_UPDATE_URL ||
+    DEFAULT_UPDATE_GITHUB_REPO;
   const githubRepo = parseGitHubRepoRef(githubRepoRef);
 
   if (githubRepo) {
@@ -231,7 +240,7 @@ async function checkForAppUpdates({ manual = false } = {}) {
   const feed = resolveUpdateFeedOptions();
   if (!feed) {
     const message =
-      "Auto update chưa cấu hình ATTENDANCE_UPDATE_URL hoặc ATTENDANCE_UPDATE_GITHUB_REPO";
+      "Auto update chưa cấu hình nguồn cập nhật";
     emitUpdateStatus({ state: "disabled", message });
     return { success: true, skipped: true, message };
   }
