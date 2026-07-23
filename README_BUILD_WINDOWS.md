@@ -93,21 +93,30 @@ Sau đó:
   - Dự án đã cấu hình sẵn `npm run build:win` với `-c.win.signAndEditExecutable=false` để tránh bước gây lỗi này.
   - Nếu vẫn cần bật lại bước sign/edit executable, cần chạy terminal với quyền Administrator hoặc bật Developer Mode trên Windows.
 
-## 9) Auto update
+## 9) Auto update qua GitHub Releases
 
-App đã có cơ chế tự kiểm tra phiên bản mới khi chạy bản đã cài đặt.
+App đã có cơ chế tự kiểm tra phiên bản mới khi chạy bản đã cài đặt. Với repo public, nên dùng GitHub Releases thay vì trỏ vào source code của repo.
 
 Điều kiện để auto update hoạt động:
 
+- Tăng `version` trong `package.json` trước mỗi bản phát hành mới.
 - Build app bằng `npm run build:win`.
-- Upload các file trong `dist` lên một thư mục update server, tối thiểu cần:
+- Tạo GitHub Release có tag đúng version, ví dụ `v1.0.6`.
+- Upload các file trong `dist` lên release assets, tối thiểu cần:
   - `latest.yml`
   - file installer `Attendance Agent Desktop-Setup-x.y.z.exe`
-  - các blockmap nếu có.
-- Trên máy chạy app, cấu hình biến môi trường:
+  - file `.blockmap` nếu có.
+
+Trên máy chạy app, cấu hình một trong hai biến môi trường sau:
 
 ```cmd
-setx ATTENDANCE_UPDATE_URL "https://your-domain.com/attendance-agent/"
+setx ATTENDANCE_UPDATE_GITHUB_REPO "odinbiadmin/time-forge-agent"
+```
+
+Hoặc:
+
+```cmd
+setx ATTENDANCE_UPDATE_URL "https://github.com/odinbiadmin/time-forge-agent"
 ```
 
 Sau khi mở lại app, chương trình sẽ tự kiểm tra update sau khoảng 5 giây và lặp lại mỗi 6 giờ. Khi tải xong bản mới, app sẽ hỏi người dùng cài và khởi động lại ngay hoặc để lần sau.

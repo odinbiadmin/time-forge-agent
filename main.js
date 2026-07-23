@@ -163,6 +163,58 @@ function emitUpdateStatus(nextStatus) {
   sendLog(updateStatus.message, updateStatus.state === "error" ? "warning" : "info");
 }
 
+function parseGitHubRepoRef(value) {
+  const rawValue = String(value || "").trim();
+  if (!rawValue) return null;
+
+  const shorthandMatch = rawValue.match(/^([^/\s]+)\/([^/\s]+)$/);
+  if (shorthandMatch) {
+    return {
+      owner: shorthandMatch[1],
+      repo: shorthandMatch[2].replace(/\.git$/i, ""),
+    };
+  }
+
+  const urlMatch = rawValue.match(
+    /^https?:\/\/github\.com\/([^/\s]+)\/([^/\s#?]+?)(?:\.git)?(?:[/?#].*)?$/i,
+  );
+  if (urlMatch) {
+    return {
+      owner: urlMatch[1],
+      repo: urlMatch[2].replace(/\.git$/i, ""),
+    };
+  }
+
+  return null;
+}
+
+function resolveUpdateFeedOptions() {
+  const githubRepoRef =
+    process.env.ATTENDANCE_UPDATE_GITHUB_REPO ||
+    process.env.ATTENDANCE_UPDATE_REPO ||
+    process.env.ATTENDANCE_UPDATE_URL;
+  const githubRepo = parseGitHubRepoRef(githubRepoRef);
+
+  if (githubRepo) {
+    return {
+      options: {
+        provider: "github",
+        owner: githubRepo.owner,
+        repo: githubRepo.repo,
+      },
+      label: `GitHub Releases ${githubRepo.owner}/${githubRepo.repo}`,
+    };
+  }
+
+  const updateUrl = String(process.env.ATTENDANCE_UPDATE_URL || "").trim();
+  if (!updateUrl) return null;
+
+  return {
+    options: { provider: "generic", url: updateUrl },
+    label: updateUrl,
+  };
+}
+
 async function checkForAppUpdates({ manual = false } = {}) {
   if (!autoUpdater) {
     const message = "Auto update chưa sẵn sàng: thiếu electron-updater";
@@ -170,22 +222,27 @@ async function checkForAppUpdates({ manual = false } = {}) {
     return { success: false, skipped: true, error: message };
   }
 
-  const updateUrl = String(process.env.ATTENDANCE_UPDATE_URL || "").trim();
   if (!app.isPackaged) {
     const message = "Auto update chỉ chạy trên bản app đã build/cài đặt";
     emitUpdateStatus({ state: "disabled", message });
     return { success: true, skipped: true, message };
   }
 
-  if (!updateUrl) {
+  const feed = resolveUpdateFeedOptions();
+  if (!feed) {
     const message =
-      "Auto update chưa cấu hình ATTENDANCE_UPDATE_URL";
+      "Auto update chưa cấu hình ATTENDANCE_UPDATE_URL hoặc ATTENDANCE_UPDATE_GITHUB_REPO";
     emitUpdateStatus({ state: "disabled", message });
     return { success: true, skipped: true, message };
   }
 
   try {
-    autoUpdater.setFeedURL({ provider: "generic", url: updateUrl });
+    autoUpdater.setFeedURL(feed.options);
+    emitUpdateStatus({
+      state: "checking",
+      message: `Đang kiểm tra cập nhật từ ${feed.label}`,
+      percent: null,
+    });
     const result = await autoUpdater.checkForUpdates();
     return { success: true, result };
   } catch (error) {

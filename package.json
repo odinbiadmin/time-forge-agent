@@ -65,8 +65,10 @@
     },
     "publish": [
       {
-        "provider": "generic",
-        "url": "https://your-domain.com/attendance-agent/"
+        "provider": "github",
+        "owner": "odinbiadmin",
+        "repo": "time-forge-agent",
+        "releaseType": "release"
       }
     ]
   },
