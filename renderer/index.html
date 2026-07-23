@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Attendance Agent Dashboard</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <header class="app-header">
+            <div class="header-brand">
+                <img src="https://odinbi.com/assets/logo/odinbi.png" alt="Logo" class="logo">
+                <div>
+                    <h1>Bảng điều khiển chấm công <small id="appVersion"></small></h1>
+                </div>
+            </div>
+
+            <div class="header-status">
+                <div class="status-indicator" id="statusIndicator">
+                    <span class="status-dot"></span>
+                    <span class="status-copy">
+                        <strong id="statusText">Đã dừng</strong>
+                        <small id="statusMeta">Sẵn sàng cấu hình và khởi động</small>
+                    </span>
+                </div>
+
+                <div class="header-cta">
+                    <button id="startService" class="btn btn-success">Bắt đầu giám sát</button>
+                    <button id="stopService" class="btn btn-danger" disabled>Dừng</button>
+                </div>
+            </div>
+        </header>
+
+        <main class="dashboard">
+            <section class="hero-panel">
+                <div class="hero-copy">
+                    <p class="hero-kicker">Theo dõi máy chấm công</p>
+                    <div class="hero-status-cluster">
+                        <span class="hero-status-pill" id="deviceHealthValue">Thiết bị: Chưa kiểm tra</span>
+                        <span class="hero-status-pill" id="apiHealthValue">HR API: Chưa kiểm tra</span>
+                        <span class="hero-status-pill" id="syncHealthValue">Đồng bộ: 0 thành công / 0 lỗi</span>
+                        <span class="hero-status-pill" id="previousDaySyncValue">Ngày trước: Chưa tự đẩy</span>
+                        <span class="hero-status-pill" id="updateHealthValue">Cập nhật: Chưa kiểm tra</span>
+                    </div>
+                </div>
+
+                <div class="hero-metrics">
+                    <div class="metric-card metric-accent" id="cardTotalAttendance" role="button" tabindex="0">
+                        <span class="metric-label">Checkin hôm nay</span>
+                        <strong class="metric-value" id="totalAttendance">0</strong>
+                        <small class="metric-note">Nhấn để xem danh sách chấm công</small>
+                    </div>
+
+                    <div class="metric-card metric-positive" id="cardUsers" role="button" tabindex="0">
+                        <span class="metric-label">Người dùng</span>
+                        <strong class="metric-value" id="totalUsers">0</strong>
+                        <small class="metric-note">Nhấn để quản lý user trên thiết bị</small>
+                    </div>
+
+                    <div class="metric-card">
+                        <span class="metric-label">Thời gian hiện tại</span>
+                        <strong class="metric-value metric-time" id="todayRealtime">-</strong>
+                        <small class="metric-note">Cập nhật thường xuyên</small>
+                    </div>
+                </div>
+            </section>
+
+            <section class="workspace-grid">
+                <div class="left-column">
+                    <section class="log-panel">
+                        <div class="panel-header">
+                            <div>
+                                <h3>Dòng hoạt động</h3>
+                            </div>
+
+                            <div class="panel-header-meta">
+                                <span class="meta-pill" id="lastSyncBadge">Chưa có lần đồng bộ</span>
+                                <span class="meta-pill" id="logCountBadge">0 log</span>
+                            </div>
+                        </div>
+
+                        <div class="issue-banner" id="issueBanner">
+                            <div>
+                                <strong id="issueBannerTitle">Không có lỗi nổi bật</strong>
+                                <p id="issueBannerMessage">Khi phát sinh lỗi vận hành hoặc submit checkin thất bại, thông báo sẽ hiển thị ở đây.</p>
+                            </div>
+                        </div>
+
+                        <div class="log-toolbar">
+                            <div class="log-filters" id="logFilters">
+                                <button class="filter-chip active" data-filter="all">Tất cả</button>
+                                <button class="filter-chip" data-filter="failed">Lỗi</button>
+                                <button class="filter-chip" data-filter="warning">Cảnh báo</button>
+                                <button class="filter-chip" data-filter="sync">Đồng bộ</button>
+                                <button class="filter-chip" data-filter="device">Thiết bị</button>
+                            </div>
+
+                            <button id="clearLogView" class="btn btn-secondary btn-compact">Xóa log đang xem</button>
+                        </div>
+
+                        <div id="logContainer" class="log-container"></div>
+                    </section>
+                </div>
+
+                <aside class="right-column">
+                    <section class="config-panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="panel-eyebrow">Thiết lập</p>
+                                <h3>Cấu hình hệ thống</h3>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <div class="config-section-header">
+                                <div>
+                                    <h4>1. Máy chấm công</h4>
+                                    <p>Khai báo thiết bị và xác minh kết nối trước khi chạy dịch vụ.</p>
+                                </div>
+                                <span class="section-badge" id="deviceSectionBadge">Chưa sẵn sàng</span>
+                            </div>
+
+                            <div class="config-grid">
+                                <div class="form-group">
+                                    <label for="deviceIp">Máy chính - IP</label>
+                                    <input type="text" id="deviceIp" placeholder="192.168.1.100">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="devicePort">Máy chính - Port</label>
+                                    <input type="text" id="devicePort" placeholder="4370">
+                                </div>
+
+                                <div class="form-group form-group-action">
+                                    <label>&nbsp;</label>
+                                    <button id="testDevice" class="btn btn-secondary">Kiểm tra thiết bị</button>
+                                </div>
+                            </div>
+
+                            <div class="device-list-field">
+                                <label>Máy chấm công bổ sung</label>
+                                <div class="device-add-grid">
+                                    <input type="text" id="extraDeviceName" placeholder="Tên máy">
+                                    <input type="text" id="extraDeviceIp" placeholder="192.168.1.101">
+                                    <input type="text" id="extraDevicePort" placeholder="4370">
+                                    <button id="addDeviceBtn" class="btn btn-secondary" type="button">Thêm máy</button>
+                                </div>
+                                <div id="extraDeviceList" class="device-list-empty">Chưa thêm máy bổ sung</div>
+                                <textarea id="extraDevices" rows="4" hidden></textarea>
+                            </div>
+
+                            <div class="device-card" id="deviceCard">
+                                <div class="device-card-header">
+                                    <strong id="deviceName">-</strong>
+                                    <span id="deviceSerial">-</span>
+                                </div>
+                                <div class="device-card-row">
+                                    <span class="device-card-label">Mô tả</span>
+                                    <span class="device-card-value" id="deviceInfo">Chưa có thông tin thiết bị</span>
+                                </div>
+                                <div class="device-card-row">
+                                    <span class="device-card-label">Thông tin thêm</span>
+                                    <span class="device-card-value" id="deviceInfoFull">-</span>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <div class="config-section-header">
+                                <div>
+                                    <h4>2. Kết nối HR</h4>
+                                    <p>Cấu hình API để gửi checkin và theo dõi phản hồi từ server.</p>
+                                </div>
+                                <span class="section-badge" id="apiSectionBadge">Chưa sẵn sàng</span>
+                            </div>
+
+                            <div class="config-grid">
+                                <div class="form-group form-group-span-3">
+                                    <label for="apiUrl">API URL</label>
+                                    <input type="text" id="apiUrl" placeholder="https://domain.com/">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="apiKey">API Key</label>
+                                    <input type="password" id="apiKey" placeholder="***">
+                                </div>
+
+                                <div class="form-group">
+                                    <label for="secretKey">Secret Key</label>
+                                    <input type="password" id="secretKey" placeholder="***">
+                                </div>
+
+                                <div class="form-group form-group-action">
+                                    <label>&nbsp;</label>
+                                    <button id="testConnection" class="btn btn-secondary">Kiểm tra API</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="config-section">
+                            <div class="config-section-header">
+                                <div>
+                                    <h4>3. Đồng bộ và khởi động</h4>
+                                    <p>Chọn chu kỳ polling theo phút và cấu hình tự khởi động nếu cần.</p>
+                                </div>
+                                <span class="section-badge" id="syncSectionBadge">Chưa kích hoạt</span>
+                            </div>
+
+                            <div class="config-grid sync-grid">
+                                <div class="form-group form-group-span-2">
+                                    <label for="pollInterval">Chu kỳ polling <span id="pollIntervalValue">60 phút</span></label>
+                                    <div class="slider-container">
+                                        <input type="range" id="pollInterval" min="1" max="60" value="60" step="1">
+                                    </div>
+                                </div>
+
+                                <div class="form-group">
+                                    <label class="checkbox-label" for="autoStart">
+                                        <input type="checkbox" id="autoStart">
+                                        <span>Tự khởi động cùng Windows</span>
+                                    </label>
+                                </div>
+                            </div>
+
+                            <div class="config-actions">
+                                <button id="saveConfig" class="btn btn-primary">Lưu cấu hình</button>
+                            </div>
+                        </div>
+                    </section>
+
+                    <section class="quick-actions-panel">
+                        <div class="panel-header">
+                            <div>
+                                <p class="panel-eyebrow">Tác vụ nhanh</p>
+                                <h3>Điều hướng nhanh</h3>
+                            </div>
+                        </div>
+
+                        <div class="quick-actions-grid">
+                            <button id="openAttendanceAction" class="quick-action">
+                                <strong>Xem chấm công hôm nay</strong>
+                                <span>Mở danh sách bản ghi và trạng thái đồng bộ</span>
+                            </button>
+
+                            <button id="openUsersAction" class="quick-action">
+                                <strong>Quản lý user thiết bị</strong>
+                                <span>Thêm, sửa, xóa và sync user từ máy chấm công</span>
+                            </button>
+                        </div>
+                    </section>
+                </aside>
+            </section>
+        </main>
+    </div>
+
+    <script src="ui-dialog.js"></script>
+    <script src="renderer.js"></script>
+</body>
+</html>
