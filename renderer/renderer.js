@@ -3,10 +3,11 @@ const secretKeyInput = document.getElementById("secretKey");
 const apiKeyInput = document.getElementById("apiKey");
 const deviceIpInput = document.getElementById("deviceIp");
 const devicePortInput = document.getElementById("devicePort");
+const deviceModelInput = document.getElementById("deviceModel");
 const extraDevicesInput = document.getElementById("extraDevices");
-const extraDeviceNameInput = document.getElementById("extraDeviceName");
 const extraDeviceIpInput = document.getElementById("extraDeviceIp");
 const extraDevicePortInput = document.getElementById("extraDevicePort");
+const extraDeviceModelInput = document.getElementById("extraDeviceModel");
 const addDeviceBtn = document.getElementById("addDeviceBtn");
 const extraDeviceListEl = document.getElementById("extraDeviceList");
 const deviceInfoEl = document.getElementById("deviceInfo");
@@ -20,6 +21,7 @@ const autoStartCheckbox = document.getElementById("autoStart");
 const saveConfigBtn = document.getElementById("saveConfig");
 const testConnectionBtn = document.getElementById("testConnection");
 const testDeviceBtn = document.getElementById("testDevice");
+const deviceDiagnosticsBtn = document.getElementById("deviceDiagnostics");
 const startServiceBtn = document.getElementById("startService");
 const stopServiceBtn = document.getElementById("stopService");
 const statusIndicator = document.getElementById("statusIndicator");
@@ -42,8 +44,6 @@ const apiHealthValue = document.getElementById("apiHealthValue");
 const syncHealthValue = document.getElementById("syncHealthValue");
 const previousDaySyncValue = document.getElementById("previousDaySyncValue");
 const updateHealthValue = document.getElementById("updateHealthValue");
-const openAttendanceAction = document.getElementById("openAttendanceAction");
-const openUsersAction = document.getElementById("openUsersAction");
 const deviceSectionBadge = document.getElementById("deviceSectionBadge");
 const apiSectionBadge = document.getElementById("apiSectionBadge");
 const syncSectionBadge = document.getElementById("syncSectionBadge");
@@ -155,6 +155,36 @@ function openDataDialog(title, contentHtml) {
   overlay.style.display = "flex";
 }
 
+function renderLoadingDialog(title, message) {
+  openDataDialog(
+    title,
+    `<div class="modal-loading" role="status" aria-live="polite"><span class="loading-spinner" aria-hidden="true"></span><div><strong>${escapeHtml(message)}</strong><p>Vui lòng giữ kết nối với máy chấm công.</p></div></div>`,
+  );
+}
+
+function setButtonLoading(button, loading, message = "Đang xử lý...") {
+  if (!button) return;
+  if (loading) {
+    button.dataset.defaultLabel ||= button.textContent.trim();
+    button.disabled = true;
+    button.classList.add("is-loading");
+    button.setAttribute("aria-busy", "true");
+    button.innerHTML = `<span class="button-spinner" aria-hidden="true"></span><span>${escapeHtml(message)}</span>`;
+    return;
+  }
+
+  button.classList.remove("is-loading");
+  button.removeAttribute("aria-busy");
+  button.textContent = button.dataset.defaultLabel || button.textContent;
+}
+
+function setCardLoading(card, loading) {
+  if (!card) return;
+  card.classList.toggle("is-loading", loading);
+  if (loading) card.setAttribute("aria-busy", "true");
+  else card.removeAttribute("aria-busy");
+}
+
 function escapeHtml(text) {
   return String(text ?? "")
     .replace(/&/g, "&amp;")
@@ -185,6 +215,70 @@ function formatAttendanceTime(value) {
   }
 
   return raw;
+}
+
+function formatDiagnosticOutcome(outcome) {
+  return {
+    read_success: "Đọc dữ liệu thành công",
+    read_empty: "Kết nối được, log đang trống",
+    read_failed: "Kết nối được nhưng đọc dữ liệu lỗi",
+    connection_failed: "Không kết nối được",
+  }[outcome] || "Chưa có kết quả";
+}
+
+function renderDiagnosticReport(report) {
+  if (!report) return '<div class="modal-empty">Chưa chạy chẩn đoán.</div>';
+  const metadataRows = Object.entries(report.metadata || {}).map(([key, value]) =>
+    `<tr><td>${escapeHtml(key)}</td><td>${escapeHtml(typeof value === "object" ? JSON.stringify(value) : value)}</td></tr>`
+  ).join("") || '<tr><td colspan="2">Không đọc được metadata</td></tr>';
+  const stepRows = (report.steps || []).map((step) =>
+    `<tr><td>${escapeHtml(step.name)}</td><td>${step.status === "success" ? "Thành công" : "Lỗi"}</td><td>${escapeHtml(step.durationMs)} ms</td><td>${escapeHtml(step.error || "-")}</td></tr>`
+  ).join("");
+  const logRows = (report.attendance?.preview || []).map((record, index) =>
+    `<tr><td>${index + 1}</td><td><pre class="diagnostic-json">${escapeHtml(JSON.stringify(record, null, 2))}</pre></td></tr>`
+  ).join("") || '<tr><td colspan="2">Không có log mẫu</td></tr>';
+  return `
+    <div class="diagnostic-summary ${escapeHtml(report.outcome)}"><strong>${escapeHtml(formatDiagnosticOutcome(report.outcome))}</strong><span>${escapeHtml(report.durationMs)} ms · ${escapeHtml(report.connection?.protocol || "-").toUpperCase()} · adapter: ${escapeHtml(report.adapter?.id || "-")}</span>${report.error ? `<p>${escapeHtml(report.error)}</p>` : ""}</div>
+    <div class="diagnostic-grid"><div><span>Model nhập</span><strong>${escapeHtml(report.input?.model || "-")}</strong></div><div><span>Model nhận diện</span><strong>${escapeHtml(report.detectedModel || "Chưa nhận diện được")}</strong></div><div><span>IP / Port</span><strong>${escapeHtml(report.input?.ip || "-")}:${escapeHtml(report.input?.port || "-")}</strong></div><div><span>Tổng log</span><strong>${escapeHtml(report.attendance?.total || 0)}</strong></div></div>
+    <h4>Trạng thái từng bước</h4><div class="modal-table-wrap"><table class="data-table"><thead><tr><th>Bước</th><th>Kết quả</th><th>Thời lượng</th><th>Lỗi</th></tr></thead><tbody>${stepRows}</tbody></table></div>
+    <h4>Thông tin thiết bị</h4><div class="modal-table-wrap"><table class="data-table"><tbody>${metadataRows}</tbody></table></div>
+    <h4>Log mẫu (tối đa 20)</h4><div class="modal-table-wrap"><table class="data-table"><thead><tr><th>#</th><th>Dữ liệu</th></tr></thead><tbody>${logRows}</tbody></table></div>
+    ${(report.metadataErrors || []).length ? `<p class="diagnostic-warning">Một số lệnh metadata lỗi: ${escapeHtml(report.metadataErrors.map((item) => `${item.step}: ${item.error}`).join(" | "))}</p>` : ""}`;
+}
+
+function openDeviceDiagnosticsDialog() {
+  let latestReport = null;
+  const primaryDevice = getDevicesFromInputs()[0] || {};
+  openDataDialog("Chẩn đoán máy chấm công", `
+    <p class="diagnostic-note">Chỉ đọc dữ liệu; không lưu attendance, không gọi API và không thay đổi cấu hình máy.</p>
+    <div class="diagnostic-form"><div class="form-group"><label for="diagnosticModel">Model</label><select id="diagnosticModel"><option value="zkteco">ZKTeco / tương thích</option><option value="RJ1300-2500">Ronald Jack RJ1300 — Licence 2500 (TCP)</option><option value="RJ1300-3500">Ronald Jack RJ1300 — Licence 3500 (FK623 SDK)</option></select></div><div class="form-group"><label for="diagnosticIp">IP</label><input id="diagnosticIp" value="${escapeHtml(primaryDevice.ip || "")}" placeholder="192.168.1.100"></div><div class="form-group"><label for="diagnosticPort">Port</label><input id="diagnosticPort" value="${escapeHtml(primaryDevice.port || "4370")}"></div><div class="form-group"><label for="diagnosticNote">Note</label><input id="diagnosticNote" placeholder="Ghi chú (tuỳ chọn)"></div></div>
+    <div class="modal-actions"><button id="runDeviceDiagnostics" class="btn btn-primary" type="button">Chạy chẩn đoán</button><button id="exportDeviceDiagnostics" class="btn btn-secondary" type="button" disabled>Xuất JSON</button></div><div id="deviceDiagnosticsResult">${renderDiagnosticReport(null)}</div>
+  `);
+  const diagnosticModel = document.getElementById("diagnosticModel");
+  if (diagnosticModel) diagnosticModel.value = primaryDevice.model || "zkteco";
+  document.getElementById("runDeviceDiagnostics")?.addEventListener("click", async () => {
+    const button = document.getElementById("runDeviceDiagnostics");
+    const resultEl = document.getElementById("deviceDiagnosticsResult");
+    const payload = ["model", "ip", "port", "note"].reduce((result, key) => ({ ...result, [key]: document.getElementById(`diagnostic${key[0].toUpperCase()}${key.slice(1)}`)?.value || "" }), {});
+    if (!payload.ip.trim()) return showToast("Cần nhập IP để chẩn đoán", "warning");
+    button.disabled = true; button.textContent = "Đang chẩn đoán...";
+    resultEl.innerHTML = '<div class="modal-empty">Đang kết nối và đọc dữ liệu mẫu...</div>';
+    try {
+      const result = await window.electronAPI.runDeviceDiagnostics(payload);
+      if (!result?.success) throw new Error(result?.error || "Chẩn đoán thất bại");
+      latestReport = result.report;
+      resultEl.innerHTML = renderDiagnosticReport(latestReport);
+      document.getElementById("exportDeviceDiagnostics").disabled = false;
+    } catch (error) {
+      resultEl.innerHTML = `<div class="diagnostic-warning">${escapeHtml(error.message || String(error))}</div>`;
+    } finally { button.disabled = false; button.textContent = "Chạy chẩn đoán"; }
+  });
+  document.getElementById("exportDeviceDiagnostics")?.addEventListener("click", async () => {
+    if (!latestReport) return;
+    const result = await window.electronAPI.exportDeviceDiagnostics(latestReport);
+    if (result?.success) showToast(`Đã xuất JSON: ${result.filePath}`, "success");
+    else if (!result?.canceled) showToast(result?.error || "Không thể xuất JSON", "failed");
+  });
 }
 
 function formatClockTime(value = new Date()) {
@@ -220,13 +314,21 @@ function normalizeDeviceEntry(device, index = 0) {
   const ip = String(device?.ip ?? device?.deviceIp ?? "").trim();
   if (!ip) return null;
   const port = String(device?.port ?? device?.devicePort ?? "4370").trim() || "4370";
-  const name = String(device?.name || `Máy chấm công ${index + 1}`).trim();
+  const configuredModel = String(device?.model || device?.driver || "zkteco").trim() || "zkteco";
+  const compactModel = configuredModel.replace(/[\s_-]+/g, "").toUpperCase();
+  const model = ["RJ1300", "RONALDJACKRJ1300"].includes(compactModel)
+    ? "RJ1300-3500"
+    : ["SK2500", "RONALDJACKSK2500", "RONALDJACK2500", "LICENCE2500"].includes(compactModel)
+      ? "RJ1300-2500"
+      : configuredModel;
   return {
-    id: String(device?.id || `${ip}:${port}`).trim(),
-    name,
+    id: `${ip}:${port}`,
     ip,
     port,
     info: device?.info || null,
+    model,
+    networkPassword: Number.parseInt(device?.networkPassword, 10) || 0,
+    sdkDirectory: String(device?.sdkDirectory || "").trim() || undefined,
   };
 }
 
@@ -266,20 +368,30 @@ function setDeviceResult(device, result) {
 function formatDeviceStatusLabel(device) {
   const result = getDeviceResult(device);
   if (result) {
-    return result.success ? "Kết nối tốt" : "Kết nối lỗi";
+    if (!result.success) return "Kết nối lỗi";
+    const infoErrors = result.infoErrors || result.info?.infoErrors || [];
+    if (result.infoSuccess === false) return "Kết nối OK, lỗi info";
+    return infoErrors.length > 0 ? "Kết nối OK, thiếu info" : "Kết nối tốt";
   }
   return device?.info ? "Đã có thông tin" : "Chưa kiểm tra";
 }
 
 function getDeviceStatusClass(device) {
   const result = getDeviceResult(device);
-  if (result) return result.success ? "device-status-success" : "device-status-failed";
+  if (result) {
+    if (!result.success) return "device-status-failed";
+    const infoErrors = result.infoErrors || result.info?.infoErrors || [];
+    return result.infoSuccess === false || infoErrors.length > 0
+      ? "device-status-warning"
+      : "device-status-success";
+  }
   return device?.info ? "device-status-success" : "device-status-pending";
 }
 
 function getDeviceInfoRows(device) {
   const result = getDeviceResult(device);
   const info = result?.info || device?.info || {};
+  const infoErrors = result?.infoErrors || info.infoErrors || [];
   const nestedInfo = parseDeviceInfoPayload(info.info);
   const userCounts =
     extractUserCounts(info.info) ??
@@ -288,8 +400,7 @@ function getDeviceInfoRows(device) {
     null;
   const rowCandidates = [
     ["IP/Port", `${device.ip}:${device.port || "4370"}`],
-    ["Tên máy", device.name || info.name || "-"],
-    ["Device name", info.name || nestedInfo.name || "-"],
+    ["Tên từ thiết bị", info.name || nestedInfo.name || "-"],
     ["Serial", info.serialNumber || info.serial || nestedInfo.serialNumber || nestedInfo.serial || "-"],
     ["Version", info.version || nestedInfo.version || nestedInfo.firmwareVersion || "-"],
     ["MAC", info.mac || nestedInfo.mac || nestedInfo.MAC || "-"],
@@ -298,6 +409,22 @@ function getDeviceInfoRows(device) {
 
   if (result && !result.success) {
     rowCandidates.push(["Lỗi", result.error || "Không kết nối được thiết bị"]);
+  }
+  if (result?.success) {
+    rowCandidates.push(["Connect", "Thành công"]);
+  }
+  if (result?.success && infoErrors.length > 0) {
+    infoErrors.forEach((item) => {
+      rowCandidates.push([
+        item.method || "getInfo",
+        item.message || "Không đọc được thông tin",
+      ]);
+    });
+  } else if (result?.success && result.infoSuccess === false) {
+    rowCandidates.push([
+      "Lỗi lấy thông tin",
+      result.infoError || "Kết nối được nhưng không đọc được thông tin máy",
+    ]);
   }
 
   return rowCandidates;
@@ -343,8 +470,8 @@ function renderDeviceDetails(devices = []) {
             <div class="device-detail-item">
               <div class="device-detail-heading">
                 <div>
-                  <strong>${escapeHtml(device.name || `Máy ${index + 1}`)}</strong>
-                  <span>${escapeHtml(device.ip)}:${escapeHtml(device.port || "4370")}</span>
+                  <strong>${escapeHtml(device.ip)}:${escapeHtml(device.port || "4370")}</strong>
+                  <span>${escapeHtml(device.model)}</span>
                 </div>
                 <span class="device-status-chip ${getDeviceStatusClass(device)}">${escapeHtml(formatDeviceStatusLabel(device))}</span>
               </div>
@@ -367,13 +494,21 @@ function renderDeviceDetails(devices = []) {
 }
 
 function serializeExtraDevices(devices = []) {
-  return devices
-    .map((device) => `${device.name || ""} | ${device.ip} | ${device.port || "4370"}`)
-    .join("\n");
+  return JSON.stringify(devices.map((device, index) => normalizeDeviceEntry(device, index + 1)).filter(Boolean));
 }
 
 function getExtraDevicesFromStorage() {
-  return String(extraDevicesInput?.value || "")
+  const raw = String(extraDevicesInput?.value || "").trim();
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      return parsed.map((device, index) => normalizeDeviceEntry(device, index + 1)).filter(Boolean);
+    }
+  } catch {
+    // Backward compatibility with the old "name | ip | port" format.
+  }
+  return raw
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter(Boolean)
@@ -382,10 +517,9 @@ function getExtraDevicesFromStorage() {
         .split("|")
         .map((part) => part.trim())
         .filter(Boolean);
-      const name = parts.length >= 3 ? parts[0] : `Máy chấm công ${index + 2}`;
       const ip = parts.length >= 3 ? parts[1] : parts[0];
       const port = parts.length >= 3 ? parts[2] : parts[1] || "4370";
-      return normalizeDeviceEntry({ name, ip, port }, index + 1);
+      return normalizeDeviceEntry({ ip, port }, index + 1);
     })
     .filter(Boolean);
 }
@@ -406,8 +540,8 @@ function renderExtraDeviceList() {
       (device, index) => `
         <div class="device-list-item">
           <div class="device-list-main">
-            <strong>${escapeHtml(device.name)}</strong>
-            <span>${escapeHtml(device.ip)}:${escapeHtml(device.port)}</span>
+            <strong>${escapeHtml(device.ip)}:${escapeHtml(device.port)}</strong>
+            <span>${escapeHtml(device.model)}</span>
           </div>
           <span class="device-status-chip ${getDeviceStatusClass(device)}">${escapeHtml(formatDeviceStatusLabel(device))}</span>
           <div class="device-list-actions">
@@ -425,13 +559,12 @@ function renderExtraDeviceList() {
       const device = getExtraDevicesFromStorage()[index];
       if (!device) return;
 
-      button.disabled = true;
-      button.textContent = "Đang test...";
+      setButtonLoading(button, true, "Đang kiểm tra...");
       try {
         await testConfiguredDevices([device], { silentSuccess: false });
       } finally {
+        setButtonLoading(button, false);
         button.disabled = false;
-        button.textContent = "Test";
       }
     });
   });
@@ -457,9 +590,9 @@ function getDevicesFromInputs() {
   if (primaryIp) {
     devices.push({
       id: `${primaryIp}:${primaryPort}`,
-      name: "Máy chính",
       ip: primaryIp,
       port: primaryPort,
+      model: String(deviceModelInput?.value || "zkteco"),
     });
   }
 
@@ -488,6 +621,7 @@ function renderDevicesToInputs(devices = []) {
 
   deviceIpInput.value = primaryDevice?.ip || "";
   devicePortInput.value = primaryDevice?.port || "";
+  if (deviceModelInput) deviceModelInput.value = primaryDevice?.model || "zkteco";
 
   if (extraDevicesInput) {
     extraDevicesInput.value = serializeExtraDevices(normalizedDevices.slice(1));
@@ -836,7 +970,11 @@ async function testConfiguredDevices(devices, options = {}) {
     return result;
   }
 
-  const summary = formatDeviceInfoSummary(results);
+  const infoWarningCount = results.filter((item) => {
+    const infoErrors = item.infoErrors || item.info?.infoErrors || [];
+    return item.success && (item.infoSuccess === false || infoErrors.length > 0);
+  }).length;
+  const summary = `${formatDeviceInfoSummary(results)}${infoWarningCount ? `, ${infoWarningCount} máy lỗi lấy info` : ""}`;
   healthState.device.value = "Đã kết nối";
   healthState.device.meta = summary;
   healthState.device.tone = "success";
@@ -1222,6 +1360,9 @@ async function openAttendanceDialog() {
     pending: "Chờ đồng bộ",
   };
 
+  setCardLoading(cardTotalAttendance, true);
+  renderLoadingDialog("Dữ liệu chấm công", "Đang kết nối và tải dữ liệu chấm công...");
+
   const loadAttendanceRecords = async () => {
     const result = await window.electronAPI.getAttendanceByDate(selectedDate);
     if (!result || !result.success) {
@@ -1331,8 +1472,7 @@ async function openAttendanceDialog() {
     const syncDateBtn = document.getElementById("attendanceSyncDateBtn");
     if (syncDateBtn) {
       syncDateBtn.addEventListener("click", async () => {
-        syncDateBtn.disabled = true;
-        syncDateBtn.textContent = "Đang đẩy...";
+        setButtonLoading(syncDateBtn, true, "Đang đẩy dữ liệu...");
         addLog(`Bắt đầu đẩy dữ liệu chấm công ngày ${selectedDate}`, "info");
 
         try {
@@ -1353,8 +1493,8 @@ async function openAttendanceDialog() {
         } catch (error) {
           showToast(`Đẩy dữ liệu thất bại: ${error.message}`, "failed");
         } finally {
+          setButtonLoading(syncDateBtn, false);
           syncDateBtn.disabled = false;
-          syncDateBtn.textContent = "Đẩy dữ liệu ngày này";
         }
       });
     }
@@ -1419,6 +1559,7 @@ async function openAttendanceDialog() {
       dateInput.addEventListener("change", async (event) => {
         selectedDate = event.target.value || formatDateInputValue(new Date());
         activeDeviceFilter = "all";
+        renderLoadingDialog("Dữ liệu chấm công", `Đang tải dữ liệu ngày ${selectedDate}...`);
         try {
           await loadAttendanceRecords();
           renderAttendanceTable();
@@ -1452,14 +1593,28 @@ async function openAttendanceDialog() {
     await loadAttendanceRecords();
     renderAttendanceTable();
   } catch (error) {
+    openDataDialog("Dữ liệu chấm công", `<div class="modal-error">${escapeHtml(error.message || "Không tải được danh sách chấm công")}</div>`);
     showToast(error.message || "Không tải được danh sách chấm công", "failed");
+  } finally {
+    setCardLoading(cardTotalAttendance, false);
   }
 }
 
 async function openUsersDialog() {
-  const result = await window.electronAPI.getUsers();
+  setCardLoading(cardUsers, true);
+  renderLoadingDialog("Danh sách user", "Đang tải danh sách user từ máy chấm công...");
+  let result;
+  try {
+    result = await window.electronAPI.getUsers();
+  } catch (error) {
+    result = { success: false, error: error?.message || String(error) };
+  } finally {
+    setCardLoading(cardUsers, false);
+  }
   if (!result || !result.success) {
-    showToast(result?.error || "Không tải được danh sách user", "failed");
+    const message = result?.error || "Không tải được danh sách user";
+    openDataDialog("Danh sách user", `<div class="modal-error">${escapeHtml(message)}</div>`);
+    showToast(message, "failed");
     return;
   }
 
@@ -1471,10 +1626,18 @@ async function openUsersDialog() {
     const syncBtn = document.getElementById("btnUserSync");
     if (syncBtn) {
       syncBtn.onclick = async () => {
+        setButtonLoading(syncBtn, true, "Đang tải user...");
         setUsersProcessing(true, "Đang sync toàn bộ user...");
-        const syncRes = await window.electronAPI.syncUsers();
+        let syncRes;
+        try {
+          syncRes = await window.electronAPI.syncUsers();
+        } catch (error) {
+          syncRes = { success: false, error: error?.message || String(error) };
+        }
         if (!syncRes || !syncRes.success) {
           setUsersProcessing(false);
+          setButtonLoading(syncBtn, false);
+          syncBtn.disabled = false;
           showToast(syncRes?.error || "Sync user thất bại", "failed");
           return;
         }
@@ -1634,7 +1797,7 @@ async function openUsersDialog() {
     });
   };
 
-  const renderUsersTable = () => {
+  const renderUsersTable = (searchInputState = null) => {
     const filteredUsers = users.filter((user) => {
       const keyword = searchKeyword.trim().toLowerCase();
       if (!keyword) return true;
@@ -1686,9 +1849,20 @@ async function openUsersDialog() {
     const searchInput = document.getElementById("usersSearchInput");
     if (searchInput) {
       searchInput.value = searchKeyword;
+      if (searchInputState) {
+        searchInput.focus();
+        const cursorPosition = Math.min(
+          searchInputState.cursorPosition,
+          searchInput.value.length,
+        );
+        searchInput.setSelectionRange(cursorPosition, cursorPosition);
+      }
       searchInput.addEventListener("input", (event) => {
-        searchKeyword = event.target.value || "";
-        renderUsersTable();
+        const target = event.target;
+        searchKeyword = target.value || "";
+        renderUsersTable({
+          cursorPosition: target.selectionStart ?? searchKeyword.length,
+        });
       });
     }
 
@@ -1702,7 +1876,9 @@ async function openUsersDialog() {
     const usersProcessingEl = document.getElementById("usersProcessing");
     if (usersProcessingEl) {
       usersProcessingEl.style.display = processing ? "block" : "none";
-      usersProcessingEl.textContent = message;
+      usersProcessingEl.innerHTML = processing
+        ? `<span class="loading-spinner loading-spinner-inline" aria-hidden="true"></span><span>${escapeHtml(message)}</span>`
+        : "";
     }
 
     const actionButtons = document.querySelectorAll(
@@ -1750,6 +1926,7 @@ function updateServiceStatus(status) {
   stopServiceBtn.disabled = !currentServiceRunning;
 
   const inputs = [
+    deviceModelInput,
     deviceIpInput,
     devicePortInput,
     extraDevicesInput,
@@ -1771,6 +1948,14 @@ function updateServiceStatus(status) {
 
 async function init() {
   try {
+    const heroPanel = document.querySelector(".hero-panel");
+    const configPanel = document.querySelector(".config-panel");
+    const configPanelHeader = configPanel?.querySelector(".panel-header");
+    if (heroPanel && configPanel && configPanelHeader && heroPanel.parentElement !== configPanel) {
+      heroPanel.classList.add("config-overview");
+      configPanelHeader.insertAdjacentElement("afterend", heroPanel);
+    }
+
     const version = await window.electronAPI.getVersion();
     document.getElementById("appVersion").textContent = `v${version}`;
 
@@ -1798,7 +1983,7 @@ pollIntervalInput.addEventListener("input", () => {
   updateStatusSummary();
 });
 
-[deviceIpInput, devicePortInput, extraDevicesInput, apiUrlInput, apiKeyInput, secretKeyInput].forEach(
+[deviceModelInput, deviceIpInput, devicePortInput, extraDevicesInput, apiUrlInput, apiKeyInput, secretKeyInput].forEach(
   (input) => {
     if (!input) return;
     input.addEventListener("input", () => {
@@ -1811,16 +1996,16 @@ if (addDeviceBtn) {
   addDeviceBtn.addEventListener("click", () => {
     const ip = String(extraDeviceIpInput?.value || "").trim();
     const port = String(extraDevicePortInput?.value || "4370").trim() || "4370";
-    const name =
-      String(extraDeviceNameInput?.value || "").trim() ||
-      `Máy chấm công ${getDevicesFromInputs().length + 1}`;
-
     if (!ip) {
       showToast("Cần nhập IP máy chấm công bổ sung", "warning");
       return;
     }
 
-    const nextDevice = normalizeDeviceEntry({ name, ip, port });
+    const nextDevice = normalizeDeviceEntry({
+      ip,
+      port,
+      model: String(extraDeviceModelInput?.value || "zkteco"),
+    });
     const existingDevices = getDevicesFromInputs();
     if (
       existingDevices.some(
@@ -1833,7 +2018,6 @@ if (addDeviceBtn) {
 
     const extraDevices = [...getExtraDevicesFromStorage(), nextDevice];
     extraDevicesInput.value = serializeExtraDevices(extraDevices);
-    if (extraDeviceNameInput) extraDeviceNameInput.value = "";
     if (extraDeviceIpInput) extraDeviceIpInput.value = "";
     if (extraDevicePortInput) extraDevicePortInput.value = "";
     renderExtraDeviceList();
@@ -1881,8 +2065,7 @@ saveConfigBtn.addEventListener("click", async () => {
 });
 
 testConnectionBtn.addEventListener("click", async () => {
-  testConnectionBtn.disabled = true;
-  testConnectionBtn.textContent = "Đang kiểm tra...";
+  setButtonLoading(testConnectionBtn, true, "Đang kiểm tra API...");
 
   try {
     const apiUrl = (apiUrlInput.value || "").trim();
@@ -1923,14 +2106,13 @@ testConnectionBtn.addEventListener("click", async () => {
     showToast(`Kiểm tra API thất bại: ${error.message}`, "failed");
     updateOverview();
   } finally {
+    setButtonLoading(testConnectionBtn, false);
     testConnectionBtn.disabled = false;
-    testConnectionBtn.textContent = "Kiểm tra API";
   }
 });
 
 testDeviceBtn.addEventListener("click", async () => {
-  testDeviceBtn.disabled = true;
-  testDeviceBtn.textContent = "Đang kiểm tra...";
+  setButtonLoading(testDeviceBtn, true, "Đang kiểm tra máy...");
 
   try {
     const devices = getDevicesFromInputs();
@@ -1943,8 +2125,8 @@ testDeviceBtn.addEventListener("click", async () => {
     showToast(`Kiểm tra thiết bị thất bại: ${error.message}`, "failed");
     updateOverview();
   } finally {
+    setButtonLoading(testDeviceBtn, false);
     testDeviceBtn.disabled = false;
-    testDeviceBtn.textContent = "Kiểm tra thiết bị";
   }
 });
 
@@ -2005,12 +2187,8 @@ if (cardUsers) {
   });
 }
 
-if (openAttendanceAction) {
-  openAttendanceAction.addEventListener("click", openAttendanceDialog);
-}
-
-if (openUsersAction) {
-  openUsersAction.addEventListener("click", openUsersDialog);
+if (deviceDiagnosticsBtn) {
+  deviceDiagnosticsBtn.addEventListener("click", openDeviceDiagnosticsDialog);
 }
 
 if (logFiltersEl) {

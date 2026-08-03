@@ -12,6 +12,7 @@ const path = require("path");
 const { Config } = require("./core/config");
 const { AttendanceService } = require("./core/attendance");
 const { ApiClient } = require("./core/api");
+const { DeviceDiagnosticsService } = require("./core/device_diagnostics");
 let autoUpdater = null;
 try {
   ({ autoUpdater } = require("electron-updater"));
@@ -32,6 +33,7 @@ let tray = null;
 let attendanceService = null;
 let config = null;
 let apiClient = null;
+const deviceDiagnosticsService = new DeviceDiagnosticsService();
 let updateStatus = {
   state: "idle",
   message: "Chưa kiểm tra cập nhật",
@@ -154,6 +156,38 @@ function updateTrayStatus(status) {
       },
     ]);
     tray.setContextMenu(contextMenu);
+  }
+}
+
+function formatErrorMessage(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (typeof error.message === "string" && error.message.trim()) return error.message;
+  if (typeof error.getError === "function") return formatErrorMessage(error.getError());
+  if (error.command || error.ip) {
+    const nested = formatErrorMessage(error.err);
+    if (error.command === "TCP CONNECT") {
+      return `Không mở được kết nối TCP tới ${error.ip || "thiết bị"}${nested && nested !== "Unknown error" && nested !== "{}" ? `: ${nested}` : ""}`;
+    }
+    const parts = [
+      error.command ? `command=${error.command}` : null,
+      error.ip ? `ip=${error.ip}` : null,
+      nested && nested !== "Unknown error" && nested !== "{}" ? `detail=${nested}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : "Device command failed";
+  }
+  const detailParts = [
+    error.code ? `code=${error.code}` : null,
+    error.syscall ? `syscall=${error.syscall}` : null,
+    error.address ? `address=${error.address}` : null,
+    error.port ? `port=${error.port}` : null,
+  ].filter(Boolean);
+  if (detailParts.length > 0) return detailParts.join(", ");
+  try {
+    const json = JSON.stringify(error);
+    return json && json !== "{}" ? json : String(error);
+  } catch {
+    return String(error);
   }
 }
 
@@ -451,18 +485,42 @@ ipcMain.handle("save-config", async (event, newConfig) => {
     try {
       const info = await attendanceService.getDeviceInfo(device);
       updatedDevices.push({ ...device, info });
-      sendLog(
-        `Device info fetched: ${device.name || device.ip} (${device.ip}:${device.port || 4370})`,
-        "success",
-      );
+
+      const infoErrors = Array.isArray(info?.infoErrors) ? info.infoErrors : [];
+
+      if (info?.infoSuccess === false) {
+        deviceErrors.push({
+          device,
+          error: info.infoError || "Ket noi duoc nhung khong lay duoc thong tin may",
+          connected: true,
+        });
+        sendLog(
+          `Device connected but info fetch failed for ${device.name || device.ip}: ${info.infoError || "unknown info error"}`,
+          "warning",
+        );
+      } else if (infoErrors.length > 0) {
+        sendLog(
+          `Device connected with partial info for ${device.name || device.ip}: ${infoErrors
+            .map((item) => `${item.method}: ${item.message}`)
+            .join(" | ")}`,
+          "warning",
+        );
+      } else {
+        sendLog(
+          `Device info fetched: ${device.name || device.ip} (${device.ip}:${device.port || 4370})`,
+          "success",
+        );
+      }
     } catch (error) {
+      const errorMessage = formatErrorMessage(error);
       updatedDevices.push(device);
       deviceErrors.push({
         device,
-        error: error.message || String(error),
+        error: errorMessage,
+        connected: false,
       });
       sendLog(
-        `Device info fetch failed for ${device.name || device.ip}: ${error.message || String(error)}`,
+        `Device connection failed for ${device.name || device.ip}: ${errorMessage}`,
         "warning",
       );
     }
@@ -495,12 +553,24 @@ ipcMain.handle("test-device", async (event, payload = {}) => {
   for (const device of devices) {
     try {
       const info = await attendanceService.getDeviceInfo(device);
-      results.push({ success: true, device, info });
+      results.push({
+        success: true,
+        connected: true,
+        infoSuccess: info?.infoSuccess !== false,
+        device,
+        connection: { ip: info?.ip || device.ip, port: info?.port || device.port || 4370 },
+        info,
+        infoError: info?.infoError || null,
+        infoErrors: Array.isArray(info?.infoErrors) ? info.infoErrors : [],
+      });
     } catch (error) {
+      const errorMessage = formatErrorMessage(error);
       results.push({
         success: false,
+        connected: false,
+        infoSuccess: false,
         device,
-        error: error.message || String(error),
+        error: errorMessage,
       });
     }
   }
@@ -514,6 +584,41 @@ ipcMain.handle("test-device", async (event, payload = {}) => {
       ? null
       : results.map((result) => result.error).filter(Boolean).join(" | "),
   };
+});
+
+ipcMain.handle("device-diagnostics-run", async (event, payload = {}) => {
+  if (attendanceService?.getStatus()?.running) {
+    return {
+      success: false,
+      error: "Hãy dừng giám sát trước khi chẩn đoán để tránh kết nối đồng thời tới thiết bị.",
+    };
+  }
+
+  try {
+    const report = await deviceDiagnosticsService.run(payload);
+    return { success: true, report };
+  } catch (error) {
+    return { success: false, error: formatErrorMessage(error) };
+  }
+});
+
+ipcMain.handle("device-diagnostics-export", async (event, report = {}) => {
+  try {
+    if (!report || typeof report !== "object" || !report.startedAt) {
+      throw new Error("Diagnostic report is required");
+    }
+    const safeModel = String(report.input?.model || "device").replace(/[^a-z0-9-_]+/gi, "-");
+    const result = await dialog.showSaveDialog(mainWindow, {
+      title: "Xuất báo cáo chẩn đoán máy chấm công",
+      defaultPath: `device-diagnostic-${safeModel}-${String(report.startedAt).slice(0, 10)}.json`,
+      filters: [{ name: "JSON", extensions: ["json"] }],
+    });
+    if (result.canceled || !result.filePath) return { success: false, canceled: true };
+    await fs.promises.writeFile(result.filePath, JSON.stringify(report, null, 2), "utf8");
+    return { success: true, filePath: result.filePath };
+  } catch (error) {
+    return { success: false, error: formatErrorMessage(error) };
+  }
 });
 
 // Duplicate start-service handler removed

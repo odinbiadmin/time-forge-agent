@@ -159,22 +159,18 @@ h1 {
   min-height: 0;
   overflow: hidden;
   padding: 1.1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 1rem;
+  display: block;
 }
 
 .hero-panel,
 .log-panel,
-.config-panel,
-.quick-actions-panel {
+.config-panel {
   min-width: 0;
 }
 
 .hero-panel,
 .log-panel,
 .config-panel,
-.quick-actions-panel,
 .hero-status-item {
   background: rgba(255, 255, 255, 0.92);
   border: 1px solid rgba(219, 228, 238, 0.9);
@@ -184,7 +180,7 @@ h1 {
 
 .hero-panel {
   display: grid;
-  grid-template-columns: 1.3fr 1fr;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.55fr);
   gap: 1rem;
   padding: 1.25rem;
   overflow: hidden;
@@ -199,6 +195,40 @@ h1 {
   height: 360px;
   background: radial-gradient(circle, rgba(23, 105, 224, 0.18), transparent 65%);
   pointer-events: none;
+}
+
+.config-panel .config-overview {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.8rem;
+  padding: 0;
+  margin-bottom: 0.95rem;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  overflow: visible;
+}
+
+.config-panel .config-overview::after {
+  display: none;
+}
+
+.config-panel .hero-copy {
+  min-width: 0;
+}
+
+.config-panel .hero-kicker {
+  display: none;
+}
+
+.config-panel .hero-status-cluster {
+  margin-top: 0;
+  max-width: none;
+}
+
+.config-panel .hero-metrics {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 .hero-copy h2 {
@@ -266,15 +296,20 @@ h1 {
 }
 
 .metric-card {
-  padding: 1rem;
-  border-radius: 20px;
+  position: relative;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
   background: var(--surface-muted);
   border: 1px solid var(--line);
   display: flex;
   flex-direction: column;
   gap: 0.35rem;
   justify-content: center;
-  min-height: 132px;
+  min-height: 96px;
+}
+
+.metric-action {
+  justify-content: space-between;
 }
 
 .metric-card[role="button"] {
@@ -287,6 +322,24 @@ h1 {
   transform: translateY(-2px);
   box-shadow: 0 16px 28px rgba(15, 23, 42, 0.12);
   outline: none;
+}
+
+.metric-card.is-loading {
+  pointer-events: none;
+  opacity: 0.72;
+}
+
+.metric-card.is-loading::after {
+  content: "";
+  position: absolute;
+  top: 0.8rem;
+  right: 0.8rem;
+  width: 16px;
+  height: 16px;
+  border: 2px solid rgba(37, 99, 235, 0.24);
+  border-top-color: var(--blue);
+  border-radius: 50%;
+  animation: loading-spin 0.75s linear infinite;
 }
 
 .metric-accent {
@@ -307,7 +360,7 @@ h1 {
 }
 
 .metric-value {
-  font-size: 1.85rem;
+  font-size: 1.55rem;
   line-height: 1.05;
 }
 
@@ -319,7 +372,6 @@ h1 {
 .metric-note,
 .health-subtext,
 .config-section-header p,
-.quick-action span,
 .device-card-value {
   color: var(--text-muted);
   line-height: 1.45;
@@ -327,9 +379,9 @@ h1 {
 
 .workspace-grid {
   min-height: 0;
-  flex: 1;
+  height: 100%;
   display: grid;
-  grid-template-columns: minmax(0, 1.45fr) minmax(340px, 0.95fr);
+  grid-template-columns: minmax(0, 1fr) minmax(520px, 1.15fr);
   gap: 1rem;
 }
 
@@ -346,12 +398,10 @@ h1 {
 .right-column {
   display: flex;
   flex-direction: column;
-  gap: 1rem;
 }
 
 .log-panel,
-.config-panel,
-.quick-actions-panel {
+.config-panel {
   padding: 1rem;
 }
 
@@ -599,8 +649,13 @@ h1 {
   gap: 0.85rem;
 }
 
-.device-primary-grid {
-  grid-template-columns: minmax(150px, 1fr) minmax(120px, 1fr) minmax(160px, 1fr);
+.device-primary-grid,
+.device-add-grid {
+  grid-template-columns:
+    minmax(170px, 1.2fr)
+    minmax(165px, 1.15fr)
+    minmax(105px, 0.72fr)
+    minmax(155px, 0.9fr);
   align-items: end;
   gap: 0.85rem;
 }
@@ -629,9 +684,6 @@ h1 {
 
 .device-add-grid {
   display: grid;
-  grid-template-columns: minmax(120px, 1fr) minmax(150px, 1.15fr) 96px minmax(116px, auto);
-  gap: 0.85rem;
-  align-items: end;
   margin-top: 0.45rem;
 }
 
@@ -713,6 +765,11 @@ h1 {
   color: #b91c1c;
 }
 
+.device-status-warning {
+  background: #fef3c7;
+  color: #92400e;
+}
+
 .device-status-pending {
   background: #eef2ff;
   color: #475569;
@@ -792,6 +849,7 @@ label {
 
 input[type="text"],
 input[type="password"],
+input[type="number"],
 select,
 textarea {
   width: 100%;
@@ -804,9 +862,21 @@ textarea {
 
 input[type="text"],
 input[type="password"],
+input[type="number"],
 select {
   height: 40px;
   padding: 0 0.85rem;
+}
+
+input[type="number"] {
+  appearance: textfield;
+  -moz-appearance: textfield;
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  margin: 0;
+  -webkit-appearance: none;
 }
 
 select {
@@ -822,12 +892,20 @@ textarea {
 
 input[type="text"]:focus,
 input[type="password"]:focus,
+input[type="number"]:focus,
 select:focus,
 textarea:focus,
 input[type="range"]:focus-visible {
   outline: none;
   border-color: var(--blue);
   box-shadow: 0 0 0 3px rgba(23, 105, 224, 0.12);
+}
+
+@media (max-width: 1240px) and (min-width: 981px) {
+  .device-primary-grid,
+  .device-add-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
 }
 
 .slider-container {
@@ -880,6 +958,32 @@ input[type="range"] {
   cursor: not-allowed;
   opacity: 0.56;
   box-shadow: none;
+}
+
+.btn.is-loading {
+  gap: 0.45rem;
+  pointer-events: none;
+}
+
+.button-spinner,
+.loading-spinner {
+  display: inline-block;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  border: 2px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: loading-spin 0.75s linear infinite;
+}
+
+.loading-spinner-inline {
+  margin-right: 0.5rem;
+  vertical-align: -2px;
+}
+
+@keyframes loading-spin {
+  to { transform: rotate(360deg); }
 }
 
 .btn-primary {
@@ -945,34 +1049,6 @@ input[type="range"] {
 .device-card-value {
   white-space: pre-wrap;
   word-break: break-word;
-}
-
-.quick-actions-grid {
-  display: grid;
-  gap: 0.85rem;
-}
-
-.quick-action {
-  text-align: left;
-  padding: 1rem;
-  border-radius: 18px;
-  border: 1px solid var(--line);
-  background: linear-gradient(180deg, #ffffff, #f8fafc);
-  cursor: pointer;
-  transition: transform 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
-}
-
-.quick-action:hover,
-.quick-action:focus-visible {
-  transform: translateY(-1px);
-  border-color: var(--blue);
-  box-shadow: 0 14px 24px rgba(15, 23, 42, 0.1);
-  outline: none;
-}
-
-.quick-action strong {
-  display: block;
-  margin-bottom: 0.35rem;
 }
 
 .modal-shell {
@@ -1076,6 +1152,47 @@ input[type="range"] {
   font-weight: 700;
 }
 
+.modal-loading,
+.modal-error {
+  margin: 0.5rem 0;
+  padding: 1.1rem;
+  border-radius: 14px;
+}
+
+.modal-loading {
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  min-height: 86px;
+  border: 1px solid #bfdbfe;
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.modal-loading .loading-spinner {
+  width: 24px;
+  height: 24px;
+  border-width: 3px;
+}
+
+.modal-loading strong,
+.modal-loading p {
+  display: block;
+}
+
+.modal-loading p {
+  margin: 0.25rem 0 0;
+  color: #3b82f6;
+  font-size: 0.82rem;
+}
+
+.modal-error {
+  border: 1px solid #fecaca;
+  background: #fff1f2;
+  color: #b91c1c;
+  font-weight: 700;
+}
+
 .modal-filter-group {
   width: 100%;
   align-items: center;
@@ -1159,6 +1276,21 @@ input[type="range"] {
   gap: 0.5rem;
   flex-wrap: wrap;
 }
+
+.diagnostic-note,
+.diagnostic-warning { margin: 0 0 1rem; color: var(--text-muted); }
+.diagnostic-warning { color: var(--red); }
+.diagnostic-form,
+.diagnostic-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 1rem; }
+.diagnostic-grid > div { padding: 0.7rem; border: 1px solid var(--line); border-radius: 8px; background: var(--surface-muted); }
+.diagnostic-grid span { display: block; color: var(--text-soft); font-size: 0.8rem; }
+.diagnostic-grid strong { overflow-wrap: anywhere; }
+.diagnostic-summary { display: grid; gap: 0.3rem; margin: 1rem 0; padding: 0.8rem; border-radius: 8px; background: var(--amber-soft); color: #854d0e; }
+.diagnostic-summary.read_success { background: var(--green-soft); color: #166534; }
+.diagnostic-summary.connection_failed,
+.diagnostic-summary.read_failed { background: var(--red-soft); color: #991b1b; }
+.diagnostic-summary p { margin: 0.25rem 0 0; }
+.diagnostic-json { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 0.78rem/1.35 Consolas, monospace; }
 
 .modal-empty {
   padding: 1.15rem !important;
@@ -1258,7 +1390,7 @@ input[type="range"] {
   }
 
   .metric-card {
-    min-height: 112px;
+    min-height: 88px;
   }
 
   .config-grid {

@@ -26,6 +26,7 @@
                 </div>
 
                 <div class="header-cta">
+                    <!-- <button id="deviceDiagnostics" class="btn btn-secondary">Chẩn đoán máy</button> -->
                     <button id="startService" class="btn btn-success">Bắt đầu giám sát</button>
                     <button id="stopService" class="btn btn-danger" disabled>Dừng</button>
                 </div>
@@ -46,16 +47,16 @@
                 </div>
 
                 <div class="hero-metrics">
-                    <div class="metric-card metric-accent" id="cardTotalAttendance" role="button" tabindex="0">
-                        <span class="metric-label">Checkin hôm nay</span>
+                    <div class="metric-card metric-action metric-accent" id="cardTotalAttendance" role="button" tabindex="0">
+                        <span class="metric-label">Xem chấm công</span>
                         <strong class="metric-value" id="totalAttendance">0</strong>
-                        <small class="metric-note">Nhấn để xem danh sách chấm công</small>
+                        <small class="metric-note">bản ghi hôm nay</small>
                     </div>
 
-                    <div class="metric-card metric-positive" id="cardUsers" role="button" tabindex="0">
-                        <span class="metric-label">Người dùng</span>
+                    <div class="metric-card metric-action metric-positive" id="cardUsers" role="button" tabindex="0">
+                        <span class="metric-label">Quản lý user</span>
                         <strong class="metric-value" id="totalUsers">0</strong>
-                        <small class="metric-note">Nhấn để quản lý user trên thiết bị</small>
+                        <small class="metric-note">người dùng</small>
                     </div>
 
                     <div class="metric-card">
@@ -123,6 +124,14 @@
 
                             <div class="config-grid device-primary-grid">
                                 <div class="form-group">
+                                    <label for="deviceModel">Máy chính - Model</label>
+                                    <select id="deviceModel">
+                                        <option value="zkteco">ZKTeco / tương thích</option>
+                                        <option value="RJ1300-2500">Ronald Jack RJ1300 — Licence 2500 (TCP)</option>
+                                        <option value="RJ1300-3500">Ronald Jack RJ1300 — Licence 3500 (FK623 SDK)</option>
+                                    </select>
+                                </div>
+                                <div class="form-group">
                                     <label for="deviceIp">Máy chính - IP</label>
                                     <input type="text" id="deviceIp" placeholder="192.168.1.100">
                                 </div>
@@ -141,10 +150,26 @@
                             <div class="device-list-field">
                                 <label>Máy chấm công bổ sung</label>
                                 <div class="device-add-grid">
-                                    <input type="text" id="extraDeviceName" placeholder="Tên máy">
-                                    <input type="text" id="extraDeviceIp" placeholder="192.168.1.101">
-                                    <input type="text" id="extraDevicePort" placeholder="4370">
-                                    <button id="addDeviceBtn" class="btn btn-secondary" type="button">Thêm máy</button>
+                                    <div class="form-group">
+                                        <label for="extraDeviceModel">Model</label>
+                                        <select id="extraDeviceModel">
+                                            <option value="zkteco">ZKTeco / tương thích</option>
+                                            <option value="RJ1300-2500">Ronald Jack RJ1300 — Licence 2500 (TCP)</option>
+                                            <option value="RJ1300-3500">Ronald Jack RJ1300 — Licence 3500 (FK623 SDK)</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="extraDeviceIp">IP</label>
+                                        <input type="text" id="extraDeviceIp" placeholder="192.168.1.101">
+                                    </div>
+                                    <div class="form-group">
+                                        <label for="extraDevicePort">Port</label>
+                                        <input type="text" id="extraDevicePort" placeholder="4370">
+                                    </div>
+                                    <div class="form-group form-group-action">
+                                        <label>&nbsp;</label>
+                                        <button id="addDeviceBtn" class="btn btn-secondary" type="button">Thêm máy</button>
+                                    </div>
                                 </div>
                                 <div id="extraDeviceList" class="device-list-empty">Chưa thêm máy bổ sung</div>
                                 <textarea id="extraDevices" rows="4" hidden></textarea>
@@ -229,26 +254,6 @@
                         </div>
                     </section>
 
-                    <section class="quick-actions-panel">
-                        <div class="panel-header">
-                            <div>
-                                <p class="panel-eyebrow">Tác vụ nhanh</p>
-                                <h3>Điều hướng nhanh</h3>
-                            </div>
-                        </div>
-
-                        <div class="quick-actions-grid">
-                            <button id="openAttendanceAction" class="quick-action">
-                                <strong>Xem chấm công hôm nay</strong>
-                                <span>Mở danh sách bản ghi và trạng thái đồng bộ</span>
-                            </button>
-
-                            <button id="openUsersAction" class="quick-action">
-                                <strong>Quản lý user thiết bị</strong>
-                                <span>Thêm, sửa, xóa và sync user từ máy chấm công</span>
-                            </button>
-                        </div>
-                    </section>
                 </aside>
             </section>
         </main>
