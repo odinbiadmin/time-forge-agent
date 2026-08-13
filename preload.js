@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
         ? payloadOrIp
         : { ip: payloadOrIp, port },
     ),
+  runDeviceDiagnostics: (payload) => ipcRenderer.invoke("device-diagnostics-run", payload),
+  exportDeviceDiagnostics: (report) => ipcRenderer.invoke("device-diagnostics-export", report),
 
   // Attendance/User management
   getTodayAttendance: () => ipcRenderer.invoke("attendance-get-today"),

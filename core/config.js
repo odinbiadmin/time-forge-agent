@@ -5,6 +5,14 @@ const { app, safeStorage } = require("electron");
 const SECRET_FIELDS = ["apiKey", "secretKey"];
 const ENCRYPTED_PREFIX = "enc:v1:";
 
+function normalizeDeviceModel(value) {
+  const model = String(value || "zkteco").trim() || "zkteco";
+  const normalized = model.replace(/[\s_-]+/g, "").toUpperCase();
+  if (["RJ1300", "RONALDJACKRJ1300"].includes(normalized)) return "RJ1300-3500";
+  if (["SK2500", "RONALDJACKSK2500", "RONALDJACK2500", "LICENCE2500"].includes(normalized)) return "RJ1300-2500";
+  return model;
+}
+
 class Config {
   constructor() {
     this.configPath = path.join(app.getPath("userData"), "config.json");
@@ -48,7 +56,6 @@ class Config {
       : config?.deviceIp
         ? [
             {
-              name: config.deviceName || config.deviceInfo?.name || "",
               ip: config.deviceIp,
               port: config.devicePort || "4370",
               info: config.deviceInfo || null,
@@ -61,13 +68,15 @@ class Config {
         const ip = String(device?.ip ?? device?.deviceIp ?? "").trim();
         if (!ip) return null;
         const port = String(device?.port ?? device?.devicePort ?? "4370").trim();
-        const name = String(device?.name || `Máy chấm công ${index + 1}`).trim();
         return {
-          id: String(device?.id || `${ip}:${port}`).trim(),
-          name,
+          id: `${ip}:${port}`,
           ip,
           port,
           info: device?.info || null,
+          model: normalizeDeviceModel(device?.model || device?.driver),
+          // Connection constants are selected by the adapter profile, not user input.
+          networkPassword: Number.parseInt(device?.networkPassword, 10) || 0,
+          sdkDirectory: String(device?.sdkDirectory || "").trim() || undefined,
         };
       })
       .filter(Boolean);

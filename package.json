@@ -1,6 +1,6 @@
 {
   "name": "attendance-agent-desktop",
-  "version": "1.0.7",
+  "version": "1.0.9",
   "description": "Desktop application for managing thermal attendance jobs",
   "main": "main.js",
   "scripts": {
@@ -21,8 +21,10 @@
       "main.js",
       "preload.js",
       "core/**/*",
+      "!core/models/rj1300/licence3500/rj1300_bridge.ps1",
       "renderer/**/*",
       "assets/**/*",
+      "!assets/rj1300-sdk{,/**}",
       "package.json"
     ],
     "directories": {
@@ -34,8 +36,17 @@
         "from": "assets/",
         "to": "assets",
         "filter": [
-          "**/*"
+          "**/*",
+          "!rj1300-sdk{,/**}"
         ]
+      },
+      {
+        "from": "assets/rj1300-sdk",
+        "to": "rj1300-sdk"
+      },
+      {
+        "from": "core/models/rj1300/licence3500/rj1300_bridge.ps1",
+        "to": "rj1300-sdk/rj1300_bridge.ps1"
       }
     ],
     "win": {

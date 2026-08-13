@@ -2,7 +2,7 @@ const EventEmitter = require("events");
 const fs = require("fs");
 const path = require("path");
 const { app } = require("electron");
-const Zkteco = require("zkteco-js");
+const { createDeviceAdapter } = require("./device_adapters");
 const zk_helpers = require("./zk_helpers");
 const {
   normalizeUserName: normalizeUserNameHelper,
@@ -28,6 +28,38 @@ function formatDelay(delayMs) {
   }
 
   return `${Math.round(delayMs / 1000)}s`;
+}
+
+function formatErrorMessage(error) {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+  if (typeof error.message === "string" && error.message.trim()) return error.message;
+  if (typeof error.getError === "function") return formatErrorMessage(error.getError());
+  if (error.command || error.ip) {
+    const nested = formatErrorMessage(error.err);
+    if (error.command === "TCP CONNECT") {
+      return `Không mở được kết nối TCP tới ${error.ip || "thiết bị"}${nested && nested !== "Unknown error" && nested !== "{}" ? `: ${nested}` : ""}`;
+    }
+    const parts = [
+      error.command ? `command=${error.command}` : null,
+      error.ip ? `ip=${error.ip}` : null,
+      nested && nested !== "Unknown error" && nested !== "{}" ? `detail=${nested}` : null,
+    ].filter(Boolean);
+    return parts.length > 0 ? parts.join(", ") : "Device command failed";
+  }
+  const detailParts = [
+    error.code ? `code=${error.code}` : null,
+    error.syscall ? `syscall=${error.syscall}` : null,
+    error.address ? `address=${error.address}` : null,
+    error.port ? `port=${error.port}` : null,
+  ].filter(Boolean);
+  if (detailParts.length > 0) return detailParts.join(", ");
+  try {
+    const json = JSON.stringify(error);
+    return json && json !== "{}" ? json : String(error);
+  } catch {
+    return String(error);
+  }
 }
 
 function normalizePollIntervalMs(value) {
@@ -67,6 +99,7 @@ class AttendanceService extends EventEmitter {
     this.device = null;
     this.deviceIp = null;
     this.devicePort = null;
+    this.deviceConfigKey = null;
     this.loggedRecordKeys = new Set();
     this.attendanceFetchQueue = Promise.resolve();
     this.previousDayAutoSyncedDates = new Set();
@@ -86,11 +119,13 @@ class AttendanceService extends EventEmitter {
         if (!ip) return null;
         const port = Number.parseInt(device?.port ?? device?.devicePort, 10) || 4370;
         return {
-          id: String(device?.id || `${ip}:${port}`).trim(),
-          name: String(device?.name || `Device ${index + 1}`).trim(),
+          id: `${ip}:${port}`,
           ip,
           port,
           info: device?.info || null,
+          model: String(device?.model || device?.driver || "").trim(),
+          networkPassword: Number.parseInt(device?.networkPassword, 10) || 0,
+          sdkDirectory: String(device?.sdkDirectory || "").trim() || undefined,
         };
       })
       .filter(Boolean);
@@ -1132,14 +1167,26 @@ class AttendanceService extends EventEmitter {
         throw new Error(validationError);
       }
 
-      await this.device.setUser(
-        Number(desiredUid),
-        String(userId),
-        String(name),
-        String(password),
-        Number(role || 0),
-        Number(cardno || 0),
-      );
+      if (typeof this.device.upsertUser === "function") {
+        await this.device.upsertUser({
+          uid: Number(desiredUid),
+          userid: String(userId),
+          name: String(name),
+          password: String(password),
+          role: Number(role || 0),
+          cardno: Number(cardno || 0),
+          mode,
+        });
+      } else {
+        await this.device.setUser(
+          Number(desiredUid),
+          String(userId),
+          String(name),
+          String(password),
+          Number(role || 0),
+          Number(cardno || 0),
+        );
+      }
 
       await this.safeFreeData("set-user");
 
@@ -1214,7 +1261,11 @@ class AttendanceService extends EventEmitter {
         throw new Error("Device does not support deleteUser");
       }
 
-      await this.device.deleteUser(uid);
+      if (typeof this.device.deleteUserByIdentity === "function") {
+        await this.device.deleteUserByIdentity({ uid, userId });
+      } else {
+        await this.device.deleteUser(uid);
+      }
       await this.safeFreeData("delete-user");
 
       let users = await this.syncUsers();
@@ -1257,7 +1308,6 @@ class AttendanceService extends EventEmitter {
 
     try {
       const payload = await this.device.getUsers();
-      console.log("Raw users from device:", payload);
       await this.safeFreeData("users:getUsers");
       const list = Array.isArray(payload)
         ? payload
@@ -1449,6 +1499,13 @@ class AttendanceService extends EventEmitter {
     const ip = String(selectedDevice?.ip || cfg.deviceIp || "").trim();
     const portValue = String(selectedDevice?.port || cfg.devicePort || "").trim();
     const port = Number.parseInt(portValue, 10) || 4370;
+    const deviceConfigKey = JSON.stringify({
+      ip,
+      port,
+      model: selectedDevice?.model || "",
+      networkPassword: selectedDevice?.networkPassword || 0,
+      sdkDirectory: selectedDevice?.sdkDirectory || "",
+    });
 
     if (!ip) {
       const msg = "Device IP is required";
@@ -1456,7 +1513,7 @@ class AttendanceService extends EventEmitter {
       throw new Error(msg);
     }
 
-    if (this.device && (this.deviceIp !== ip || this.devicePort !== port)) {
+    if (this.device && this.deviceConfigKey !== deviceConfigKey) {
       try {
         await this.device.disconnect();
       } catch (error) {
@@ -1469,9 +1526,10 @@ class AttendanceService extends EventEmitter {
     }
 
     if (!this.device) {
-      this.device = new Zkteco(ip, port, ATT_TIMEOUT, 5000);
+      this.device = createDeviceAdapter({ ...selectedDevice, ip, port });
       this.deviceIp = ip;
       this.devicePort = port;
+      this.deviceConfigKey = deviceConfigKey;
     }
 
     const connected = await this.isSocketAlive();
@@ -1490,7 +1548,7 @@ class AttendanceService extends EventEmitter {
 
     try {
       await Promise.race([
-        this.device.createSocket(),
+        this.device.connect(),
         new Promise((_, reject) =>
           setTimeout(
             () => reject(new Error(`Timeout after ${ATT_TIMEOUT / 1000}s`)),
@@ -1502,12 +1560,21 @@ class AttendanceService extends EventEmitter {
       this.emit("log", { message: "Device connected", type: "success" });
       return { ip, port };
     } catch (error) {
+      const message = formatErrorMessage(error);
+      try {
+        if (this.device && typeof this.device.disconnect === "function") {
+          await this.device.disconnect();
+        }
+      } catch {
+        // Ignore cleanup failure after a failed connection attempt.
+      }
+      this.device = null;
       this.emit("log", {
-        message: `Connect failed: ${error.message}`,
+        message: `Connect failed: ${message}`,
         type: "failed",
       });
-      this.emit("error", { message: error.message, type: "connect" });
-      throw error;
+      this.emit("error", { message, type: "connect" });
+      throw new Error(message);
     }
   }
 
@@ -1552,9 +1619,7 @@ class AttendanceService extends EventEmitter {
    * Lấy thông tin thiết bị cơ bản (name/serial/info) để hiển thị trên UI.
    * @returns {Promise<{ip:string,port:number,name:string|null,serialNumber:string|null,info:any}>}
    */
-  async getDeviceInfo(deviceConfig = null) {
-    await this.connectDevice(deviceConfig);
-    // Call each info method separately so a failure in one doesn't break the others
+  async readConnectedDeviceInfo(deviceConfig = null) {
     const payload = {
       ip: this.deviceIp,
       port: this.devicePort,
@@ -1562,41 +1627,97 @@ class AttendanceService extends EventEmitter {
       name: null,
       serialNumber: null,
       info: null,
+      infoErrors: [],
     };
 
-    const errors = [];
-
-    try {
-      // payload.serialNumber = await this.device.getSerialNumber();
-      payload.serialNumber = await zk_helpers.getSerialNumberSafe(this.device);
-      payload.name = await this.device.getDeviceName();
-      payload.info = await this.device.getInfo();
-
-      await this.device.disconnect();
-      this.device = null;
-    } catch (e) {
-      errors.push({ method: "getSerialNumber", message: e.message });
-      this.emit("log", {
-        message: `getSerialNumber failed: ${e.message}`,
-        type: "warning",
-      });
+    if (typeof this.device?.getDeviceDetails === "function") {
+      try {
+        const details = await this.device.getDeviceDetails();
+        payload.serialNumber = details?.serialNumber || null;
+        payload.name = details?.name || null;
+        payload.info = details?.info || null;
+        return payload;
+      } catch (e) {
+        const message = formatErrorMessage(e);
+        payload.infoErrors.push({ method: "getDeviceDetails", message });
+        this.emit("log", { message: `getDeviceDetails failed: ${message}`, type: "warning" });
+      }
     }
 
-    if (errors.length === 1) {
-      const err = new Error(
-        "All device info calls failed: " + JSON.stringify(errors),
-      );
+    const readSteps = [
+      {
+        method: "getSerialNumber",
+        run: async () => {
+          payload.serialNumber = await zk_helpers.getSerialNumberSafe(this.device);
+        },
+      },
+      {
+        method: "getDeviceName",
+        run: async () => {
+          payload.name = await this.device.getDeviceName();
+        },
+      },
+      {
+        method: "getInfo",
+        run: async () => {
+          payload.info = await this.device.getInfo();
+        },
+      },
+    ];
+
+    for (const step of readSteps) {
+      try {
+        await step.run();
+      } catch (e) {
+        const message = formatErrorMessage(e);
+        payload.infoErrors.push({ method: step.method, message });
+        this.emit("log", {
+          message: `${step.method} failed: ${message}`,
+          type: "warning",
+        });
+      }
+    }
+
+    return payload;
+  }
+
+  async getDeviceInfo(deviceConfig = null) {
+    await this.connectDevice(deviceConfig);
+    let payload;
+
+    try {
+      payload = await this.readConnectedDeviceInfo(deviceConfig);
+    } finally {
+      try {
+        if (this.device && typeof this.device.disconnect === "function") {
+          await this.device.disconnect();
+        }
+      } finally {
+        this.device = null;
+      }
+    }
+
+    if (!payload.serialNumber && !payload.name && !payload.info) {
+      payload.infoSuccess = false;
+      payload.infoError = `Kết nối được thiết bị nhưng không lấy được thông tin: ${payload.infoErrors
+          .map((item) => `${item.method}: ${item.message}`)
+          .join(" | ")}`;
       this.emit("log", {
-        message: `Get device info failed: ${err.message}`,
-        type: "failed",
+        message: `Get device info warning: ${payload.infoError}`,
+        type: "warning",
       });
-      this.emit("error", { message: err.message, type: "device-info" });
-      throw err;
+    } else {
+      payload.infoSuccess = true;
+      payload.infoError = payload.infoErrors.length
+        ? payload.infoErrors.map((item) => `${item.method}: ${item.message}`).join(" | ")
+        : null;
     }
 
     this.emit("log", {
-      message: "Device info loaded (partial)",
-      type: "success",
+      message: payload.infoSuccess
+        ? "Device info loaded"
+        : "Device connected but info is unavailable",
+      type: payload.infoSuccess ? "success" : "warning",
     });
     return payload;
   }

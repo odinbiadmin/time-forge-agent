@@ -1,0 +1,15 @@
+{
+  "model": "RJ1300",
+  "source": "Ronald Jack Software v3.1",
+  "requiredFiles": [
+    "FK623Attend.dll",
+    "FKAttend.dll",
+    "FKViaDev.dll",
+    "LFWViaDev.dll",
+    "FaceDataConv.dll",
+    "FpDataConv.dll",
+    "libusb0.dll",
+    "TMPCCOMM.dll",
+    "FKModelDic.ini"
+  ]
+}

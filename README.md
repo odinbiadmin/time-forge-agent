@@ -1,81 +1,31 @@
-# Attendance Agent Desktop (Electron)
+# Attendance Agent Desktop
 
-Ứng dụng Desktop theo dõi dữ liệu chấm công từ máy ZKTeco, lưu theo ngày và đồng bộ log lên API.
+Ứng dụng Windows dùng để kết nối máy chấm công, đọc nhân viên và dữ liệu chấm công qua giao diện desktop/API cục bộ.
 
-## Tổng quan chức năng
+## Thiết bị hỗ trợ
 
-- Kết nối máy chấm công theo Device IP/Port.
-- Lấy dữ liệu chấm công theo chu kỳ poll interval.
-- Lưu dữ liệu local theo ngày tại thư mục userData/attendance.
-- Quản lý user trên máy chấm công (thêm, sửa, xóa, sync).
-- Đồng bộ từng bản ghi attendance lên API và theo dõi trạng thái:
-  - pending
-  - success
-  - failed
+| Nhóm thiết bị | Lựa chọn trên UI | Cách kết nối | Khả năng |
+| --- | --- | --- | --- |
+| ZKTeco tương thích | `ZKTeco / tương thích` | `zkteco-js` | Đọc dữ liệu theo khả năng giao thức |
+| Ronald Jack RJ1300, Licence 3500 | `Ronald Jack RJ1300 — Licence 3500 (FK623 SDK)` | FK623 SDK, bridge PowerShell 32-bit | Đọc thiết bị, nhân viên, chấm công; thêm/xóa nhân viên |
+| Ronald Jack RJ1300, Licence 2500 | `Ronald Jack RJ1300 — Licence 2500 (TCP)` | Giao thức TCP riêng | Chỉ đọc thiết bị, nhân viên và chấm công |
 
-## Cấu hình chính
+Hai lựa chọn RJ1300 là cùng dòng máy. Chúng khác profile/giao thức kết nối, không phải hai model phần cứng khác nhau.
 
-Trên giao diện ứng dụng:
+## Chạy phát triển
 
-- Device IP
-- Device Port
-- API URL
-- API Key
-- Secret Key
-- Poll Interval
-- Auto Start
+```powershell
+npm install
+npm run dev
+```
 
-## Luồng Test
+Trong giao diện, chọn đúng profile thiết bị, nhập IP/port và bấm **Kiểm tra thiết bị** trước khi đọc hoặc đồng bộ dữ liệu. Các tham số kết nối nội bộ của RJ1300 được chọn tự động theo profile.
 
-### Test API
+## Lưu ý vận hành
 
-- Nút Test API sẽ kiểm tra kết nối thật tới server bằng thông tin vừa nhập.
-- Cơ chế test:
-  - Gọi endpoint /api/method/ping
-  - Header Authorization: token apiKey:secretKey
+- Port phổ biến của máy chấm công là `4370`; hãy kiểm tra mạng trước bằng `Test-NetConnection <IP> -Port 4370`.
+- Đóng phần mềm Ronald Jack khác đang giữ kết nối với máy trước khi chẩn đoán.
+- Chức năng thêm/xóa nhân viên chỉ bật cho profile RJ1300 Licence 3500. Luôn dùng một mã nhân viên thử nghiệm riêng trước khi thao tác dữ liệu thật.
+- Không cần cài `C:\RonaldJackSoftwarev3.1` trên máy chạy Agent. SDK cần thiết được đóng gói cùng ứng dụng.
 
-### Test Device
-
-- Nút Test Device dùng trực tiếp IP/Port đang nhập để kiểm tra kết nối máy chấm công.
-- Nếu thành công sẽ hiển thị thông tin thiết bị (name/serial/info).
-
-## Luồng đồng bộ attendance lên API
-
-Sau khi poll được attendance:
-
-1. Gán trạng thái cho từng log.
-2. Gửi các log đang pending hoặc failed lên API.
-3. Cập nhật lại trạng thái trong file ngày.
-
-Endpoint sử dụng:
-
-- POST /api/method/hrms.hr.doctype.employee_checkin.employee_checkin.add_log_based_on_employee_field
-
-Payload mỗi log:
-
-- employee_field_value: user_id
-- timestamp: định dạng YYYY-MM-DD HH:mm:ss.000000
-- device_id: serialNumber từ config thiết bị
-
-## Dữ liệu local
-
-- File config:
-  - Windows: C:/Users/<User>/AppData/Roaming/attendance-agent-desktop/config.json
-- File attendance theo ngày:
-  - C:/Users/<User>/AppData/Roaming/attendance-agent-desktop/attendance/YYYY-MM-DD.json
-- File user cache:
-  - C:/Users/<User>/AppData/Roaming/attendance-agent-desktop/attendance/user.json
-
-## Scripts
-
-- npm install: cài dependencies
-- npm run dev: chạy app dev
-- npm run dev:mon: chạy app với nodemon
-- npm run build:win: build file cài đặt Windows
-- npm run clean: xóa dist
-
-## Ghi chú kỹ thuật
-
-- Tên user khi thêm/sửa được chuẩn hóa bỏ dấu tiếng Việt trước khi ghi xuống thiết bị.
-- Attendance list trên UI hiển thị status sync của từng record.
-- Today card hiển thị ngày + giờ realtime.
+Xem [hướng dẫn đóng gói Windows](README_BUILD_WINDOWS.md) và [quy trình chẩn đoán/kết nối RJ1300](REMOTE_RJ1300_CONNECTION_TEST_PLAN.md).
